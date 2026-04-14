@@ -8,6 +8,7 @@
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <Preferences.h>
+#include <esp_task_wdt.h>
 #include <Secrets.h>   // defines MYSSID, MYPSK
 
 // ─── Debug ────────────────────────────────────────────────────────────────────
@@ -24,13 +25,14 @@
 #define HOSTNAME  "InOut"
 #define TX_POWER  15       // dBm
 
-// GPIO available on most ESP32 boards (adjust as needed)
-const uint8_t PINS[] = {2,4,5,12,13,14,15,16,17,18,19,21,22,23,25,26,27,32,33,34,35,36,39};
+// ESP32-C3 safe user GPIOs (0-10 = general I/O, 18/19 = USB, 20/21 = UART0)
+// GPIO 11-17 are reserved for internal flash/SPI — do not use.
+const uint8_t PINS[] = {0,1,2,3,4,5,6,7,8,9,10,18,19,20,21};
 const uint8_t PIN_COUNT = sizeof(PINS) / sizeof(PINS[0]);
 
 // ─── Globals ──────────────────────────────────────────────────────────────────
-WebServer  server(80);
-DNSServer  dns;
+WebServer   server(80);
+DNSServer   dns;
 Preferences prefs;
 
 bool captiveMode = false;
@@ -39,7 +41,7 @@ char savedPSK[64];
 
 // Pin state: direction (0=IN,1=OUT), value (0/1), monitored
 struct PinState { uint8_t dir; uint8_t val; bool monitor; };
-PinState pinState[sizeof(PINS)];
+PinState pinState[PIN_COUNT];   // FIX: was sizeof(PINS) — now uses PIN_COUNT
 
 // ─── Forward declarations ─────────────────────────────────────────────────────
 void startWifi();
@@ -48,7 +50,6 @@ void setupOTA();
 void setupMDNS();
 void setupRoutes();
 String pinJSON();
-String settingsPage();
 
 #include "html.h"   // HTML strings: PAGE_MAIN, PAGE_PORTAL
 
@@ -93,7 +94,7 @@ void loop() {
   static uint32_t lastCheck = 0;
   if (!captiveMode && WiFi.status() != WL_CONNECTED && millis() - lastCheck > 15000) {
     lastCheck = millis();
-    DBGLN("[WiFi] reconnecting…");
+    DBGLN("[WiFi] reconnecting...");
     WiFi.reconnect();
   }
 }
@@ -107,12 +108,15 @@ void startWifi() {
 
   DBG("[WiFi] connecting to "); DBGLN(savedSSID);
   uint32_t t = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - t < 10000) delay(250);
+  while (WiFi.status() != WL_CONNECTED && millis() - t < 10000) {
+    esp_task_wdt_reset();   // FIX: feed WDT during blocking wait
+    delay(250);
+  }
 
   if (WiFi.status() == WL_CONNECTED) {
     DBG("[WiFi] IP: "); DBGLN(WiFi.localIP());
   } else {
-    DBGLN("[WiFi] failed — starting captive portal");
+    DBGLN("[WiFi] failed - starting captive portal");
     startAP();
   }
 }
@@ -163,8 +167,7 @@ void setupRoutes() {
     if (ssid.length()) {
       prefs.putString("ssid", ssid);
       prefs.putString("psk",  psk);
-      server.send(200, "text/html",
-        "<h2>Saved! Rebooting…</h2>");
+      server.send(200, "text/html", "<h2>Saved! Rebooting...</h2>");
       delay(1500);
       ESP.restart();
     } else {
@@ -172,7 +175,7 @@ void setupRoutes() {
     }
   });
 
-  // GET /pins  → JSON array of pin states
+  // GET /pins  -> JSON array of pin states
   server.on("/pins", HTTP_GET, []() {
     server.send(200, "application/json", pinJSON());
   });
