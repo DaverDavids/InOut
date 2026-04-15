@@ -60,8 +60,8 @@ void setup() {
 
   // Load saved credentials
   prefs.begin("inout", false);
-  strlcpy(savedSSID, prefs.getString("ssid", MYSSID).c_str(), 64);
-  strlcpy(savedPSK,  prefs.getString("psk",  MYPSK ).c_str(), 64);
+  strlcpy(savedSSID, prefs.getString("ssid", MYSSIDIOT).c_str(), 64);
+  strlcpy(savedPSK,  prefs.getString("psk",  MYPSKIOT ).c_str(), 64);
 
   // Default all pins to INPUT
   for (uint8_t i = 0; i < PIN_COUNT; i++) {
