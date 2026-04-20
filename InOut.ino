@@ -100,34 +100,33 @@ void loop() {
 
 // ─── WiFi ─────────────────────────────────────────────────────────────────────
 void startWifi() {
-  WiFi.persistent(false);          // don't write credentials to flash every boot
+  WiFi.persistent(false);
   WiFi.setAutoReconnect(true);
   WiFi.setHostname(HOSTNAME);
   WiFi.mode(WIFI_STA);
-  delay(1000);                      // let radio settle after mode switch
   WiFi.setTxPower(WIFI_POWER_11dBm);
 
-  for (int attempt = 1; attempt <= 2; attempt++) {
-    DBG("[WiFi] attempt "); DBG(attempt); DBG(" connecting to "); DBGLN(savedSSID);
-    WiFi.begin(savedSSID, savedPSK);
+  // ESP32-C3: first begin() after cold boot often fails due to RF cal not ready.
+  // Kick the radio with a short dummy connect, then do the real attempt.
+  WiFi.begin(savedSSID, savedPSK);
+  delay(500);                  // let RF cal complete
+  WiFi.disconnect(true);
+  delay(200);
 
-    uint32_t t = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - t < 5000) {
-      delay(250);
-    }
-
-    if (WiFi.status() == WL_CONNECTED) {
-      DBG("[WiFi] IP: "); DBGLN(WiFi.localIP());
-      return;
-    }
-
-    DBGLN("[WiFi] attempt failed, retrying...");
-    WiFi.disconnect(true);
-    delay(500);
+  // Real attempt
+  DBGLN("[WiFi] connecting...");
+  WiFi.begin(savedSSID, savedPSK);
+  uint32_t t = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - t < 15000) {
+    delay(250);
   }
 
-  DBGLN("[WiFi] all attempts failed - starting captive portal");
-  startAP();
+  if (WiFi.status() == WL_CONNECTED) {
+    DBG("[WiFi] IP: "); DBGLN(WiFi.localIP());
+  } else {
+    DBGLN("[WiFi] failed - starting captive portal");
+    startAP();
+  }
 }
 
 void startAP() {
