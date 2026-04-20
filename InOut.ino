@@ -8,7 +8,6 @@
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <Preferences.h>
-#include <esp_task_wdt.h>
 #include <Secrets.h>   // defines MYSSID, MYPSK
 
 // ─── Debug ────────────────────────────────────────────────────────────────────
@@ -22,7 +21,7 @@
 #endif
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-#define HOSTNAME  "InOut3"
+#define HOSTNAME  "InOut1"
 #define TX_POWER  11       // dBm
 
 // ESP32-C3 safe user GPIOs (0-10 = general I/O, 18/19 = USB, 20/21 = UART0)
@@ -101,24 +100,34 @@ void loop() {
 
 // ─── WiFi ─────────────────────────────────────────────────────────────────────
 void startWifi() {
+  WiFi.persistent(false);          // don't write credentials to flash every boot
+  WiFi.setAutoReconnect(true);
   WiFi.setHostname(HOSTNAME);
   WiFi.mode(WIFI_STA);
-  WiFi.setTxPower(WIFI_POWER_15dBm);
-  WiFi.begin(savedSSID, savedPSK);
+  delay(1000);                      // let radio settle after mode switch
+  WiFi.setTxPower(WIFI_POWER_11dBm);
 
-  DBG("[WiFi] connecting to "); DBGLN(savedSSID);
-  uint32_t t = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - t < 10000) {
-    esp_task_wdt_reset();   // FIX: feed WDT during blocking wait
-    delay(250);
+  for (int attempt = 1; attempt <= 2; attempt++) {
+    DBG("[WiFi] attempt "); DBG(attempt); DBG(" connecting to "); DBGLN(savedSSID);
+    WiFi.begin(savedSSID, savedPSK);
+
+    uint32_t t = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - t < 5000) {
+      delay(250);
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+      DBG("[WiFi] IP: "); DBGLN(WiFi.localIP());
+      return;
+    }
+
+    DBGLN("[WiFi] attempt failed, retrying...");
+    WiFi.disconnect(true);
+    delay(500);
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
-    DBG("[WiFi] IP: "); DBGLN(WiFi.localIP());
-  } else {
-    DBGLN("[WiFi] failed - starting captive portal");
-    startAP();
-  }
+  DBGLN("[WiFi] all attempts failed - starting captive portal");
+  startAP();
 }
 
 void startAP() {
