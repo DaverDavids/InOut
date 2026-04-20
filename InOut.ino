@@ -22,12 +22,12 @@
 #endif
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-#define HOSTNAME  "InOut"
+#define HOSTNAME  "InOut3"
 #define TX_POWER  11       // dBm
 
 // ESP32-C3 safe user GPIOs (0-10 = general I/O, 18/19 = USB, 20/21 = UART0)
 // GPIO 11-17 are reserved for internal flash/SPI — do not use.
-const uint8_t PINS[] = {0,1,2,3,4,5,6,7,8,9,10,18,19,20,21};
+const uint8_t PINS[] = {0,1,2,3,4,5,6,7,8,9,10,20,21};
 const uint8_t PIN_COUNT = sizeof(PINS) / sizeof(PINS[0]);
 
 // ─── Globals ──────────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ void setup() {
   // Load saved credentials
   prefs.begin("inout", false);
   strlcpy(savedSSID, prefs.getString("ssid", MYSSIDIOT).c_str(), 64);
-  strlcpy(savedPSK,  prefs.getString("psk",  MYPSKIOT ).c_str(), 64);
+  strlcpy(savedPSK,  prefs.getString("psk",  MYPSKIOT).c_str(), 64);
 
   // Default all pins to INPUT
   for (uint8_t i = 0; i < PIN_COUNT; i++) {
@@ -103,8 +103,8 @@ void loop() {
 void startWifi() {
   WiFi.setHostname(HOSTNAME);
   WiFi.mode(WIFI_STA);
-  WiFi.begin(savedSSID, savedPSK);
   WiFi.setTxPower(WIFI_POWER_15dBm);
+  WiFi.begin(savedSSID, savedPSK);
 
   DBG("[WiFi] connecting to "); DBGLN(savedSSID);
   uint32_t t = millis();

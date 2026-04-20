@@ -1,157 +1,71 @@
 <img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" style="height:64px;margin-right:32px"/>
 
-# look at github repo InOut.... add a wifi page where we can see signal strength to the ap, and also an average over 5 seconds, both in very visible letters, and graph them both. Describe all changes needed to me precisely, but very concisely, tell me exactly what to change
+# look at the new code in the inout github repo.... the graphs are going really low in the page... the signal strength graph keeps going lower and lower infinitely and making the page longer. provide fix and describe changes
 
-Here's a precise, concise breakdown of every change needed:
+Two root causes :
 
-***
-
-## `InOut.ino` — Add `/wifi` API endpoint
-
-In `setupRoutes()`, add this new route after the `/pins` route :
-
-```cpp
-server.on("/wifi", HTTP_GET, []() {
-  int rssi = WiFi.RSSI();
-  String j = "{\"rssi\":" + String(rssi) + ",\"ssid\":\"" + String(savedSSID) + "\"}";
-  server.send(200, "application/json", j);
-});
-```
-
-No other changes needed in `InOut.ino`.
+1. **Both canvases use `maintainAspectRatio: false` but have no fixed height on their parent containers** — Chart.js then reads the parent's growing height as its reference and keeps expanding.
+2. **The WiFi chart canvas uses `height:220px` as a CSS style but its parent `.chart-panel` uses `display:flex;flex-direction:column` with no fixed height**, so the flex child grows unbounded.
 
 ***
 
-## `html.h` — Add WiFi page
+## Exact changes in `html.h`
 
-### 1. Add a nav tab to the `<header>`
+### Fix 1 — GPIO chart panel: add fixed height
 
-```
-After `<h1>InOut</h1>`, add two nav buttons :
-```
-
-```html
-<button class="tab-btn" onclick="showPage('gpio')" id="tabGpio">GPIO</button>
-<button class="tab-btn" onclick="showPage('wifi')" id="tabWifi">WiFi</button>
-```
-
-Add to `<style>`:
+Find this CSS:
 
 ```css
-.tab-btn{background:none;border:1px solid var(--border);border-radius:var(--r-sm);
-         padding:.2rem .75rem;color:var(--muted);cursor:pointer;font:inherit;font-size:.8rem}
-.tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.chart-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+             overflow:hidden;grid-column:2;display:flex;flex-direction:column}
+```
+
+Change to:
+
+```css
+.chart-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+             overflow:hidden;grid-column:2;display:flex;flex-direction:column;height:320px}
 ```
 
 
 ***
 
-### 2. Wrap existing `<main>` in a div
+### Fix 2 — WiFi chart container: replace inline style
 
-Rename/wrap existing `<main>` tag:
+Find the WiFi chart wrapper div:
 
 ```html
-<div id="pageGpio"> ... existing <main>...</main> ... </div>
+<div class="chart-panel" style="display:block">
 ```
 
-
-***
-
-### 3. Add the WiFi page div (after `pageGpio`)
+Change to:
 
 ```html
-<div id="pageWifi" style="display:none;max-width:700px;margin:1rem auto;display:none">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.5rem;text-align:center;margin-bottom:1rem">
-    <div style="font-size:.875rem;color:var(--muted);margin-bottom:.5rem">Current RSSI</div>
-    <div id="wifiRssi" style="font-size:4rem;font-weight:900;letter-spacing:-2px;color:var(--accent)">--</div>
-    <div style="font-size:1rem;color:var(--muted)">dBm</div>
-    <div style="margin-top:1.5rem;font-size:.875rem;color:var(--muted)">5-Second Average</div>
-    <div id="wifiAvg" style="font-size:3rem;font-weight:800;color:var(--warn)">--</div>
-    <div style="font-size:1rem;color:var(--muted)">dBm</div>
-  </div>
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:.75rem">
-    <div style="font-size:.875rem;font-weight:600;margin-bottom:.5rem">Signal History</div>
-    <canvas id="wifiChart" style="width:100%;height:220px"></canvas>
-  </div>
-</div>
+<div class="chart-panel" style="display:flex;height:280px">
 ```
 
 
 ***
 
-### 4. Add WiFi JS (inside `<script>`, at the bottom)
+### Fix 3 — WiFi chart canvas: remove conflicting height style
 
-```js
-/* ── WiFi page ── */
-const wifiRssiHistory = [];
-const WIFI_MAX_PTS = 60;
-const WIFI_AVG_WINDOW = 10; // 10 polls × 500ms = 5s
+Find:
 
-const wctx = document.getElementById('wifiChart').getContext('2d');
-const wifiChartData = { labels: [], datasets: [
-  { label: 'RSSI', data: [], borderColor: '#4f98a3', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.3 },
-  { label: '5s Avg', data: [], borderColor: '#fdab43', backgroundColor: 'transparent', borderWidth: 2, borderDash: [5,3], pointRadius: 0, tension: 0.3 }
-]};
-const wifiChart = new Chart(wctx, {
-  type: 'line', data: wifiChartData,
-  options: {
-    responsive: true, maintainAspectRatio: false, animation: {duration:0},
-    scales: {
-      x: {display: false},
-      y: { ticks: { color: '#888', callback: v => v + ' dBm' }, grid: {color: '#333'} }
-    },
-    plugins: { legend: { display: true } }
-  }
-});
-
-async function pollWifi() {
-  if (document.getElementById('pageWifi').style.display !== 'none') {
-    try {
-      const r = await fetch('/wifi');
-      const d = await r.json();
-      const rssi = d.rssi;
-      wifiRssiHistory.push(rssi);
-      if (wifiRssiHistory.length > WIFI_MAX_PTS) wifiRssiHistory.shift();
-
-      const slice = wifiRssiHistory.slice(-WIFI_AVG_WINDOW);
-      const avg = Math.round(slice.reduce((a,b) => a+b, 0) / slice.length);
-
-      document.getElementById('wifiRssi').textContent = rssi;
-      document.getElementById('wifiAvg').textContent = avg;
-
-      const ts = new Date().toLocaleTimeString();
-      wifiChartData.labels.push(ts);
-      if (wifiChartData.labels.length > WIFI_MAX_PTS) wifiChartData.labels.shift();
-      wifiChartData.datasets[0].data.push(rssi);
-      if (wifiChartData.datasets[0].data.length > WIFI_MAX_PTS) wifiChartData.datasets[0].data.shift();
-      wifiChartData.datasets[1].data.push(avg);
-      if (wifiChartData.datasets[1].data.length > WIFI_MAX_PTS) wifiChartData.datasets[1].data.shift();
-      wifiChart.update('none');
-    } catch(e) {}
-  }
-  setTimeout(pollWifi, 500);
-}
-
-function showPage(name) {
-  document.getElementById('pageGpio').style.display = name === 'gpio' ? '' : 'none';
-  document.getElementById('pageWifi').style.display = name === 'wifi' ? '' : 'none';
-  document.getElementById('tabGpio').classList.toggle('active', name === 'gpio');
-  document.getElementById('tabWifi').classList.toggle('active', name === 'wifi');
-}
-
-showPage('gpio');
-pollWifi();
+```html
+<canvas id="wifiChart" style="width:100%;height:220px;min-height:0"></canvas>
 ```
 
+Change to:
+
+```html
+<canvas id="wifiChart"></canvas>
+```
+
+The flex+fixed-height parent now controls the size — the inline `height` on the canvas itself fights `maintainAspectRatio:false` and must be removed.
 
 ***
 
-## Summary of all files touched
+### Why this works
 
-| File | Change |
-| :-- | :-- |
-| `InOut.ino` | Add `/wifi` GET route returning `{"rssi":-NN,"ssid":"..."}` |
-| `html.h` | Add tab nav, WiFi page div with big RSSI + avg readouts, Chart.js graph showing both lines, and JS polling logic |
-
-The `/wifi` endpoint returns live RSSI via `WiFi.RSSI()` . The JS polls it every 500ms (same as GPIO), keeps a 60-point rolling buffer, and computes the 5-second average over the last 10 samples . Both the instant and average values render in large bold text, and both are plotted as separate lines on the chart.
+Chart.js with `maintainAspectRatio: false` sizes itself to its **parent container's height**. If that parent has no constrained height, it reads 0→ expands → re-reads → grows forever. Fixing the parent height to a pixel value breaks the loop. All three changes are in `html.h` only; `InOut.ino` is untouched.
 

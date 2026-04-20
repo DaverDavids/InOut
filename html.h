@@ -114,7 +114,7 @@ select:focus,input[type=number]:focus{outline:2px solid var(--accent);outline-of
 
 /* ── chart panel ── */
 .chart-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
-             overflow:hidden;grid-column:2;display:flex;flex-direction:column}
+             overflow:hidden;grid-column:2;display:flex;flex-direction:column;height:320px}
 @media(max-width:700px){.chart-panel{grid-column:1}}
 .chart-panel canvas{flex:1;min-height:0;padding:.5rem}
 .chart-legend{display:flex;flex-wrap:wrap;gap:.5rem;padding:.5rem 1rem;border-top:1px solid var(--border)}
@@ -182,9 +182,9 @@ select:focus,input[type=number]:focus{outline:2px solid var(--accent);outline-of
     <div id="wifiAvg" style="font-size:3rem;font-weight:800;color:var(--warn)">--</div>
     <div style="font-size:1rem;color:var(--muted)">dBm</div>
   </div>
-  <div class="chart-panel" style="display:block">
+  <div class="chart-panel" style="display:flex;height:280px">
     <div style="font-size:.875rem;font-weight:600;padding:.625rem 1rem;border-bottom:1px solid var(--border);background:var(--surface2);border-radius:var(--r) var(--r) 0 0">Signal History</div>
-    <canvas id="wifiChart" style="width:100%;height:220px;min-height:0"></canvas>
+    <canvas id="wifiChart"></canvas>
   </div>
 </div>
 

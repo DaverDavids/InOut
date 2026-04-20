@@ -1,1 +1,1 @@
-python C:\Users\rawdr\Documents\Arduino\hardware\esp32\3.1.1\tools\espota.py -i inout.local -a asdf1qwer -f C:\Users\rawdr\AppData\Local\arduino\sketches\D81FFED0A492001CC3C6A1ED60B96509\InOut.ino.bin
+python C:\Users\rawdr\Documents\Arduino\hardware\esp32\3.1.1\tools\espota.py -i inout.local -a asdf1qwer -f .\build\esp32.esp32.esp32c3\InOut.ino.bin
