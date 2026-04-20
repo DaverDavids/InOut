@@ -76,6 +76,8 @@ header{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;
 header h1{font-size:1rem;font-weight:700;flex:1}
 .theme-btn{background:none;border:none;cursor:pointer;color:var(--muted);font-size:1.1rem;padding:.25rem}
 .theme-btn:hover{color:var(--text)}
+.tab-btn{background:none;border:1px solid var(--border);border-radius:var(--r-sm);padding:.2rem .75rem;color:var(--muted);cursor:pointer;font:inherit;font-size:.8rem}
+.tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 main{max-width:1200px;margin:0 auto;padding:1rem;display:grid;gap:1rem;
      grid-template-columns:1fr 1fr;grid-template-rows:auto 1fr}
 @media(max-width:700px){main{grid-template-columns:1fr}}
@@ -135,10 +137,13 @@ select:focus,input[type=number]:focus{outline:2px solid var(--accent);outline-of
     <path d="M3 9h2M19 9h2M3 15h2M19 15h2M9 3v2M15 3v2M9 19v2M15 19v2"/>
   </svg>
   <h1>InOut</h1>
+  <button class="tab-btn active" onclick="showPage('gpio')" id="tabGpio">GPIO</button>
+  <button class="tab-btn" onclick="showPage('wifi')" id="tabWifi">WiFi</button>
   <span id="ip" style="font-size:.75rem;color:var(--muted)"></span>
   <button class="theme-btn" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">🌓</button>
 </header>
 
+<div id="pageGpio">
 <main>
   <!-- Status -->
   <div class="status" style="grid-row:1">
@@ -166,6 +171,22 @@ select:focus,input[type=number]:focus{outline:2px solid var(--accent);outline-of
     <div class="chart-legend" id="legend"></div>
   </div>
 </main>
+</div>
+
+<div id="pageWifi" style="display:none;max-width:700px;margin:1rem auto;overflow:hidden">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.5rem;text-align:center;margin-bottom:1rem">
+    <div style="font-size:.875rem;color:var(--muted);margin-bottom:.5rem">Current RSSI</div>
+    <div id="wifiRssi" style="font-size:4rem;font-weight:900;letter-spacing:-2px;color:var(--accent)">--</div>
+    <div style="font-size:1rem;color:var(--muted)">dBm</div>
+    <div style="margin-top:1.5rem;font-size:.875rem;color:var(--muted)">5-Second Average</div>
+    <div id="wifiAvg" style="font-size:3rem;font-weight:800;color:var(--warn)">--</div>
+    <div style="font-size:1rem;color:var(--muted)">dBm</div>
+  </div>
+  <div class="chart-panel" style="display:block">
+    <div style="font-size:.875rem;font-weight:600;padding:.625rem 1rem;border-bottom:1px solid var(--border);background:var(--surface2);border-radius:var(--r) var(--r) 0 0">Signal History</div>
+    <canvas id="wifiChart" style="width:100%;height:220px;min-height:0"></canvas>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>
@@ -334,6 +355,66 @@ async function poll() {
 }
 
 poll();
+
+/* ── WiFi page ── */
+const wifiRssiHistory = [];
+const WIFI_MAX_PTS = 60;
+const WIFI_AVG_WINDOW = 10;
+
+const wctx = document.getElementById('wifiChart').getContext('2d');
+const wifiChartData = { labels: [], datasets: [
+  { label: 'RSSI', data: [], borderColor: '#4f98a3', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, tension: 0.3 },
+  { label: '5s Avg', data: [], borderColor: '#fdab43', backgroundColor: 'transparent', borderWidth: 2, borderDash: [5,3], pointRadius: 0, tension: 0.3 }
+]};
+const wifiChart = new Chart(wctx, {
+  type: 'line', data: wifiChartData,
+  options: {
+    responsive: true, maintainAspectRatio: false, animation: {duration:0},
+    scales: {
+      x: {display: false},
+      y: { min: -100, max: -20, ticks: { color: '#888', callback: v => v + ' dBm' }, grid: {color: '#333'} }
+    },
+    plugins: { legend: { display: true } }
+  }
+});
+
+async function pollWifi() {
+  if (document.getElementById('pageWifi').style.display !== 'none') {
+    try {
+      const r = await fetch('/wifi');
+      const d = await r.json();
+      const rssi = d.rssi;
+      wifiRssiHistory.push(rssi);
+      if (wifiRssiHistory.length > WIFI_MAX_PTS) wifiRssiHistory.shift();
+
+      const slice = wifiRssiHistory.slice(-WIFI_AVG_WINDOW);
+      const avg = Math.round(slice.reduce((a,b) => a+b, 0) / slice.length);
+
+      document.getElementById('wifiRssi').textContent = rssi;
+      document.getElementById('wifiAvg').textContent = avg;
+
+      const ts = new Date().toLocaleTimeString();
+      wifiChartData.labels.push(ts);
+      if (wifiChartData.labels.length > WIFI_MAX_PTS) wifiChartData.labels.shift();
+      wifiChartData.datasets[0].data.push(rssi);
+      if (wifiChartData.datasets[0].data.length > WIFI_MAX_PTS) wifiChartData.datasets[0].data.shift();
+      wifiChartData.datasets[1].data.push(avg);
+      if (wifiChartData.datasets[1].data.length > WIFI_MAX_PTS) wifiChartData.datasets[1].data.shift();
+      wifiChart.update('none');
+    } catch(e) {}
+  }
+  setTimeout(pollWifi, 500);
+}
+
+function showPage(name) {
+  document.getElementById('pageGpio').style.display = name === 'gpio' ? '' : 'none';
+  document.getElementById('pageWifi').style.display = name === 'wifi' ? '' : 'none';
+  document.getElementById('tabGpio').classList.toggle('active', name === 'gpio');
+  document.getElementById('tabWifi').classList.toggle('active', name === 'wifi');
+}
+
+showPage('gpio');
+pollWifi();
 </script>
 </body></html>
 )rawhtml";

@@ -1,0 +1,10 @@
+{
+  "additionalFiles": "..\\..,..\\..,..\\..",
+  "builtInLibrariesFolders": "C:\\Users\\rawdr\\AppData\\Local\\Arduino15\\libraries",
+  "compiler.optimization_flags": "-Os",
+  "customBuildProperties": "",
+  "fqbn": "esp32:esp32:esp32c3:UploadSpeed=921600,CDCOnBoot=cdc,CPUFreq=160,FlashFreq=80,FlashMode=qio,FlashSize=4M,PartitionScheme=default,DebugLevel=none,EraseFlash=all,JTAGAdapter=default,ZigbeeMode=default",
+  "hardwareFolders": "C:\\Users\\rawdr\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\3.3.8,C:\\Users\\rawdr\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\3.3.8",
+  "otherLibrariesFolders": "c:\\Users\\rawdr\\Documents\\Arduino\\libraries",
+  "sketchLocation": "C:\\Users\\rawdr\\Documents\\GitHub\\InOut"
+}

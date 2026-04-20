@@ -23,7 +23,7 @@
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 #define HOSTNAME  "InOut"
-#define TX_POWER  15       // dBm
+#define TX_POWER  11       // dBm
 
 // ESP32-C3 safe user GPIOs (0-10 = general I/O, 18/19 = USB, 20/21 = UART0)
 // GPIO 11-17 are reserved for internal flash/SPI — do not use.
@@ -178,6 +178,13 @@ void setupRoutes() {
   // GET /pins  -> JSON array of pin states
   server.on("/pins", HTTP_GET, []() {
     server.send(200, "application/json", pinJSON());
+  });
+
+  // GET /wifi -> RSSI and SSID
+  server.on("/wifi", HTTP_GET, []() {
+    int rssi = WiFi.RSSI();
+    String j = "{\"rssi\":" + String(rssi) + ",\"ssid\":\"" + String(savedSSID) + "\"}";
+    server.send(200, "application/json", j);
   });
 
   // POST /pin?id=N&dir=0|1&val=0|1&mon=0|1
